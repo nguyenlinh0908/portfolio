@@ -1,6 +1,52 @@
 const { StatusCodes, getReasonPhrase } = require("http-status-codes");
+const otpGenerator = require("otp-generator");
 const _ = require("lodash");
+const mailer = require("../libs/mailer");
+
 const User = require("../models/User");
+const Otp = require("../models/Otp");
+
+const userInfo = async (req, res) => {
+  let information = await User.findOne({}).select("-password");
+  if (information) {
+    return res.status(StatusCodes.OK).json(information);
+  }
+  return res.status(StatusCodes.BAD_REQUEST).json("not found");
+};
+const contact = async (req, res) => {
+  const OTP = otpGenerator.generate(6, {
+    upperCaseAlphabets: false,
+    specialChars: false,
+  });
+  let isCreated = await Otp.create({
+    otp: OTP,
+  });
+  // await mailer(OTP);
+  if (isCreated) {
+    return res.status(StatusCodes.CREATED).json(isCreated);
+  }
+  return res.status(StatusCodes.CONFLICT).json("create OTP fail");
+};
+const login = async (req, res) => {
+  let { email, password } = req.body;
+  let userOfMail = await User.findOne({ email: email });
+  let verifyPass = await userOfMail.comparePassword(password);
+  if (verifyPass) {
+    req.session.user = userOfMail;
+    res.send("success");
+  } else {
+    res.send("fail");
+  }
+};
+// admins
+const dashboard = async (req, res) => {
+  let userSes = req.session.user;
+  if (userSes) {
+    res.send(userSes);
+  } else {
+    res.json(userSes);
+  }
+};
 const createUser = async (req, res) => {
   let information = req.body;
   const mustNotEmpty = [
@@ -44,20 +90,39 @@ const createUser = async (req, res) => {
     return res.status(StatusCodes.CONFLICT).json(`Provide ${isEmpty}`);
   }
 };
-const userInfo = async (req, res) => {
-  let information = await User.find();
-  if (information) {
-    return res.status(StatusCodes.OK).json(information);
-  }
-  return res.status(StatusCodes.BAD_REQUEST).json("not found");
-};
 const updateUser = async (req, res) => {
   let information = req.body;
-  console.log(information);
-  res.json("success")
+  let id = information["_id"];
+  let standard = _.omit(information, ["_id", "avatar", "cv"]);
+  let isUpdate = await User.findOneAndUpdate({ _id: id }, standard);
+  if (isUpdate) {
+    return res.status(StatusCodes.K).json(isUpdate);
+  } else {
+    return res.status(StatusCodes.CONFLICT).json("update fail");
+  }
+};
+const updateFile = async (req, res) => {
+  let { cv, avatar } = req.locals;
+  let updatePath = {};
+  if (cv) {
+    updatePath = { ...updatePath, cv: cv };
+  }
+  if (avatar) {
+    updatePath = { ...updatePath, avatar: avatar };
+  }
+
+  let isUpload = await User.findOneAndUpdate({}, updatePath);
+  if (isUpload) {
+    console.log(isUpload);
+  }
+  res.json("upload");
 };
 module.exports = {
-  createUser,
   userInfo,
-  updateUser
+  contact,
+  login,
+  dashboard,
+  updateUser,
+  updateFile,
+  createUser,
 };
