@@ -29,14 +29,19 @@ const contact = async (req, res) => {
 };
 const login = async (req, res) => {
   let { email, password } = req.body;
-  let userOfMail = await User.findOne({ email: email });
-  let verifyPass = await userOfMail.comparePassword(password);
-  if (verifyPass) {
-    req.session.user = userOfMail;
-    res.send("success");
-  } else {
-    res.send("fail");
+  try {
+    let userOfMail = await User.findOne({ email: email });
+    let verifyPass = await userOfMail.comparePassword(password);
+    if (verifyPass) {
+      let tokenJWT = userOfMail.createJWT();
+      return res.status(StatusCodes.OK).json({ token: tokenJWT });
+    } else {
+      console.log("note verify");
+    }
+  } catch (error) {
+    return res.status(StatusCodes.CONFLICT).json(error);
   }
+  return res.status(StatusCodes.UNAUTHORIZED).json("Login fail");
 };
 // admins
 const dashboard = async (req, res) => {
